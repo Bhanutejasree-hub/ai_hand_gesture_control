@@ -53,6 +53,3 @@ The application recognizes four basic hand gestures and displays their correspon
 
 The AI Hand Gesture Control System demonstrates how Artificial Intelligence and Computer Vision can be used to recognize hand gestures through a webcam. The project helped in understanding MediaPipe, hand landmarks, gesture recognition, and web application development. It provides a foundation for developing more advanced gesture-based control applications.
 
----
-
-**Developed as part of the YR NOVATECH AI & ML Internship.**
