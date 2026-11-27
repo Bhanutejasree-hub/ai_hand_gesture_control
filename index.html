@@ -1,0 +1,345 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Hand Gesture Control System</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef4ff;
+            text-align: center;
+            padding: 25px;
+        }
+
+        .container {
+            max-width: 750px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #174ea6;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            color: #555;
+            margin-bottom: 20px;
+        }
+
+        video {
+            width: 100%;
+            max-width: 500px;
+            border-radius: 12px;
+            background: #222;
+            margin: 15px 0;
+        }
+
+        button {
+            padding: 12px 22px;
+            margin: 8px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #174ea6;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #e8f0ff;
+            border-radius: 10px;
+        }
+
+        .result h2 {
+            color: #174ea6;
+            margin-bottom: 12px;
+        }
+
+        #gesture {
+            font-size: 23px;
+            font-weight: bold;
+            color: #15803d;
+            margin-bottom: 10px;
+        }
+
+        #action {
+            font-size: 18px;
+            color: #333;
+        }
+
+        #status {
+            margin-top: 15px;
+            color: #555;
+        }
+
+        .gesture-list {
+            margin-top: 20px;
+            text-align: left;
+            background: #f5f8ff;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .gesture-list h3 {
+            color: #174ea6;
+            margin-bottom: 10px;
+        }
+
+        .gesture-list p {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>AI Hand Gesture Control System</h1>
+
+        <p class="subtitle">
+            Control actions using Artificial Intelligence
+            and hand gestures
+        </p>
+
+        <video id="webcam" autoplay playsinline></video>
+
+        <div>
+            <button onclick="startCamera()">Start Camera</button>
+            <button onclick="stopCamera()">Stop Camera</button>
+        </div>
+
+        <div class="result">
+
+            <h2>Detected Gesture</h2>
+
+            <p id="gesture">Waiting for gesture...</p>
+
+            <p id="action">Action: None</p>
+
+        </div>
+
+        <p id="status">Camera is not started.</p>
+
+        <div class="gesture-list">
+
+            <h3>Gesture Controls</h3>
+
+            <p>✋ Open Palm - Resume</p>
+            <p>✊ Closed Fist - Pause</p>
+            <p>✌️ Victory - Mouse Click</p>
+            <p>👍 Thumb Up - Volume Up</p>
+
+        </div>
+
+    </div>
+
+    <script type="module">
+
+        import {
+            HandLandmarker,
+            FilesetResolver
+        } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+
+        let stream = null;
+        let handLandmarker = null;
+        let running = false;
+
+        const video = document.getElementById("webcam");
+
+        const gestureText = document.getElementById("gesture");
+        const actionText = document.getElementById("action");
+        const statusText = document.getElementById("status");
+
+        async function loadHandDetector() {
+
+            statusText.innerText = "Loading AI hand detection...";
+
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+            );
+
+            handLandmarker = await HandLandmarker.createFromOptions(
+                vision,
+                {
+                    baseOptions: {
+                        modelAssetPath:
+                        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+                    },
+
+                    runningMode: "VIDEO",
+                    numHands: 1
+                }
+            );
+
+            statusText.innerText = "AI hand detection loaded!";
+        }
+
+        async function startCamera() {
+
+            try {
+
+                if (!handLandmarker) {
+                    await loadHandDetector();
+                }
+
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: true
+                });
+
+                video.srcObject = stream;
+
+                await video.play();
+
+                running = true;
+
+                statusText.innerText =
+                    "Camera started! Show your hand.";
+
+                detectHand();
+
+            } catch (error) {
+
+                statusText.innerText =
+                    "Error: " + error.message;
+
+            }
+        }
+
+        function recognizeGesture(hand) {
+
+            const index = hand[8].y < hand[6].y;
+            const middle = hand[12].y < hand[10].y;
+            const ring = hand[16].y < hand[14].y;
+            const pinky = hand[20].y < hand[18].y;
+
+            const thumbUp = hand[4].y < hand[3].y;
+
+            if (index && middle && ring && pinky) {
+                return "Open Palm";
+            }
+
+            else if (index && middle && !ring && !pinky) {
+                return "Victory";
+            }
+
+            else if (thumbUp && !index && !middle && !ring) {
+                return "Thumb Up";
+            }
+
+            else if (!index && !middle && !ring && !pinky) {
+                return "Closed Fist";
+            }
+
+            else {
+                return "Unknown Gesture";
+            }
+        }
+
+        function performAction(gesture) {
+
+            let action = "No action";
+
+            if (gesture === "Open Palm") {
+                action = "Resume";
+            }
+
+            else if (gesture === "Closed Fist") {
+                action = "Pause";
+            }
+
+            else if (gesture === "Victory") {
+                action = "Mouse Click";
+            }
+
+            else if (gesture === "Thumb Up") {
+                action = "Volume Up";
+            }
+
+            gestureText.innerText = gesture;
+
+            actionText.innerText = "Action: " + action;
+        }
+
+        function detectHand() {
+
+            if (!running) {
+                return;
+            }
+
+            if (video.readyState >= 2) {
+
+                const results = handLandmarker.detectForVideo(
+                    video,
+                    performance.now()
+                );
+
+                if (results.landmarks.length > 0) {
+
+                    const gesture = recognizeGesture(
+                        results.landmarks[0]
+                    );
+
+                    performAction(gesture);
+
+                }
+
+                else {
+
+                    gestureText.innerText = "No Hand Detected";
+
+                    actionText.innerText = "Action: None";
+
+                }
+            }
+
+            requestAnimationFrame(detectHand);
+        }
+
+        function stopCamera() {
+
+            running = false;
+
+            if (stream) {
+
+                stream.getTracks().forEach(track => track.stop());
+
+                stream = null;
+            }
+
+            video.srcObject = null;
+
+            gestureText.innerText = "Waiting for gesture...";
+
+            actionText.innerText = "Action: None";
+
+            statusText.innerText = "Camera stopped.";
+        }
+
+        window.startCamera = startCamera;
+        window.stopCamera = stopCamera;
+
+    </script>
+
+</body>
+</html>
